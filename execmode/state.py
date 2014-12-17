@@ -26,6 +26,7 @@ def set_state( new_state ):
     """
     set the state to a new value
     """
+    global __current_state
     __current_state = new_state
 
 def is_release():
