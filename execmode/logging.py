@@ -141,7 +141,7 @@ def dump(obj, desc=None, use_dir=False):
     import pprint
 
     if desc:
-        desc = "\n[ %s ]\n" % desc
+        desc = "\n[ %s of class %s]\n" % (desc, obj.__class__)
     else:
         desc = "\n[ dump anonymous %s ]\n" % obj.__class__
 
