@@ -15,6 +15,5 @@ setup(
     author_email = 'mike@frogtoss.com',
     url = 'https://github.com/mlabbe/execmode',
     keywords = ['logging', 'debug', 'release'],
-    license = 'MIT',
 )
 
