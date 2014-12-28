@@ -18,12 +18,16 @@ error("this will launch a debugger")
 import sys
 import pprint
 
+from colorama import Fore, Back, Style
+
 from execmode import state
 
 __stdout = sys.stdout
 __stderr = sys.stderr 
 __pdb = None
 __additional_streams = []
+__colorama = None
+__separator_count = 0
 
 def __getcallstring( level ):
     """
@@ -56,8 +60,46 @@ def __getcallstring( level ):
     return callStr       
     
 
+def __decorate_msg(msg, header):
+    if not __colorama: return "%s: %s" % (msg, header)
+    
+    if header == 'warning':
+        return __colorama.Fore.MAGENTA + \
+        __colorama.Style.BRIGHT + \
+        'warning: ' + \
+        __colorama.Fore.RESET + \
+        __colorama.Style.RESET_ALL + \
+        msg
+    
+    elif header == 'error':
+        return __colorama.Fore.RED + \
+            __colorama.Style.BRIGHT + \
+            'error: ' + \
+        __colorama.Fore.RESET + \
+        __colorama.Style.RESET_ALL + \
+        msg
+    elif header == 'fatal':
+        return __colorama.Fore.RED + \
+            __colorama.Style.BRIGHT + \
+            'error: ' + \
+        __colorama.Fore.RESET + \
+        msg + \
+        __colorama.Style.RESET_ALL
+        
+
+    return msg
+
+
 def __print(msg, stream_override=None):
-    msg = __getcallstring(2) + "\t" + msg
+    # if color is enabled, use highlighting
+    # and less whitespace to separate the callstring
+    # from the message itself.
+    if __colorama:
+        msg = __colorama.Style.BRIGHT + \
+        __getcallstring(2) + \
+        __colorama.Style.RESET_ALL + ' ' + msg
+    else:
+        msg = __getcallstring(2) + "\t" + msg
     
     if stream_override:
         target_stream = stream_override
@@ -90,7 +132,9 @@ def warning(msg):
     problematic issue raised to developer
     """
     if state.is_release(): return
-    __print("warning:\t"+msg)
+
+    dmsg = __decorate_msg(msg, "warning")
+    __print( dmsg )
 
 def error(msg):
     """
@@ -98,8 +142,10 @@ def error(msg):
     """
     if state.is_release(): return
 
+    dmsg = __decorate_msg(msg, "error")
+
     global __stderr
-    __print("error:\t%s"%msg, stream_override=__stderr)
+    __print(dmsg, stream_override=__stderr)
     
     if state.get_state() == state.DEBUG:
         __debug_program()
@@ -119,9 +165,11 @@ def fatal_error(msg, glossy_msg=None, exit_errorlevel=1 ):
         glossy_msg = msg
 
     if state.is_release():
-        __print("fatal:\t %s" % (glossy_msg), stream_override=__stderr)
+        dmsg = __decorate_msg(msg, "fatal")
+        __print(dmsg, stream_override=__stderr)
     else:
-        __print(("fatal:\t %s -- %s" % (msg, glossy_msg)), stream_override=__stderr)
+        dmsg = __decorate_msg("%s -- %s" % (msg, glossy_msg), "fatal")
+        __print(dmsg, stream_override=__stderr)
 
     if state.get_state() == state.DEBUG:
         __print("attaching debugger, deferring exit with errorlevel %i" % exit_errorlevel)
@@ -140,10 +188,21 @@ def dump(obj, desc=None, use_dir=False):
 
     import pprint
 
+    OPEN = "["
+    CLOSE= "]"
+    if __colorama:
+        OPEN = __colorama.Style.BRIGHT + __colorama.Fore.GREEN + \
+               OPEN + \
+               __colorama.Style.NORMAL + __colorama.Fore.RESET
+
+        CLOSE = __colorama.Style.BRIGHT + __colorama.Fore.GREEN + \
+                CLOSE + \
+                __colorama.Style.NORMAL + __colorama.Fore.RESET
+
     if desc:
-        desc = "\n[ %s of class %s]\n" % (desc, obj.__class__)
+        desc = "\n%s %s of class %s %s\n" % (OPEN, desc, obj.__class__, CLOSE)
     else:
-        desc = "\n[ dump anonymous %s ]\n" % obj.__class__
+        desc = "\n%s dump anonymous %s %s\n" % (OPEN, obj.__class__, CLOSE)
 
     if use_dir:
         dir_str = "\n" + pprint.pformat(dir(obj)) + "\n"
@@ -167,3 +226,47 @@ def filelog_unique_instance(ui, out_path):
     stream = open(path, 'w')
     stream.write(str(ui) + "\n")
     __additional_streams.append(stream)
+
+
+def set_color_diagnostics(setting):
+    """
+    Add color to output. Only works if optional dependency colorama is importable.
+    
+    Silently monochrome if colorama does not exist.
+    """
+    try:
+        global __colorama
+        __colorama = __import__("colorama")
+    except ImportError:
+        __colorama = None
+        return
+
+    __colorama.init()
+    
+def separator():
+    """print a separator that includes a number that increments once per execution."""
+    global __separator_count
+
+    if state.is_release(): 
+        # increment separator count in release in the unlikely case
+        # someone was hooking it in a debugger.
+        __separator_count += 1
+        return
+
+    BAR = "-"*10 + "\n"
+
+    sep = '\n'
+    if __colorama:
+        sep += __colorama.Fore.BLUE + \
+        __colorama.Style.BRIGHT
+
+    sep += str(__separator_count) + ' '
+
+    if __colorama:
+        sep += __colorama.Style.NORMAL + BAR + __colorama.Fore.RESET
+    else:
+        sep += BAR
+
+    __print(sep)
+
+    __separator_count += 1
