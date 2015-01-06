@@ -37,3 +37,5 @@ should do the trick.
 ### 1.1 ###
 
  - optional color diagnostics added 
+ - small bugfixes resulting from dogfooding
+ - dump() improved formatting
